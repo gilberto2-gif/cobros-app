@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- KPIs principales -->
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-danger">
+      <div class="label"><i class="bi bi-exclamation-triangle-fill"></i> Total CxC Vencido</div>
+      <div class="value">${{ '{:,.0f}'.format(data.kpis.total_overdue) }}</div>
+      <div class="meta">{{ data.kpis.n_invoices }} facturas · {{ data.kpis.n_clients }} clientes</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-ok">
+      <div class="label"><i class="bi bi-cash-coin"></i> Cobrado últimos 30 días</div>
+      <div class="value">${{ '{:,.0f}'.format(data.kpis.cobrado_30d) }}</div>
+      <div class="meta">{{ data.kpis.n_pagos_30d }} pagos recibidos</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-info">
+      <div class="label"><i class="bi bi-chat-square-text-fill"></i> Seguimientos enviados</div>
+      <div class="value">{{ '{:,}'.format(data.kpis.n_seguimientos_total) }}</div>
+      <div class="meta">últimos 90 días</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-warn">
+      <div class="label"><i class="bi bi-broadcast-pin"></i> Cobertura de seguimiento</div>
+      <div class="value">{{ data.kpis.pct_cobertura_seguimiento }}%</div>
+      <div class="meta">{{ data.kpis.n_invoices_con_seguimiento }} con · {{ data.kpis.n_invoices_sin_seguimiento }} sin</div>
+    </div>
+  </div>
+</div>
+
+<!-- Aging + Por Empresa -->
+<div class="row g-3 mb-3">
+  <div class="col-md-5">
+    <div class="card-section">
+      <h5><i class="bi bi-bar-chart-fill"></i> Antigüedad de saldos (Aging)</h5>
+      <canvas id="agingChart" style="max-height:240px"></canvas>
+      <div class="table-wrap mt-3" style="max-height:none">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>Bucket</th>
+              <th class="text-end">Facturas</th>
+              <th class="text-end">Monto</th>
+              <th class="text-end">% del total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set total_aging = data.kpis.total_overdue or 1 %}
+            {% for a in data.aging %}
+            <tr>
+              <td>
+                <span class="bucket-cell bucket-{{ a.bucket|replace('+','plus')|replace('-','-') }}">{{ a.bucket }} días</span>
+              </td>
+              <td class="num">{{ a.count }}</td>
+              <td class="num-money">${{ '{:,.0f}'.format(a.amount) }}</td>
+              <td class="num">{{ '{:.1f}'.format(a.amount * 100 / total_aging) }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-7">
+    <div class="card-section">
+      <h5><i class="bi bi-buildings"></i> CxC y Seguimiento por empresa</h5>
+      <canvas id="byCompanyChart" style="max-height:200px"></canvas>
+      <div class="table-wrap mt-3" style="max-height:none">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th class="text-end">Facturas</th>
+              <th class="text-end">Monto vencido</th>
+              <th class="text-end">Con seg.</th>
+              <th class="text-end">Sin seg.</th>
+              <th class="text-end">Mensajes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in data.by_company %}
+            <tr>
+              <td><strong>{{ c.name }}</strong></td>
+              <td class="num">{{ c.count }}</td>
+              <td class="num-money">${{ '{:,.0f}'.format(c.amount) }}</td>
+              <td class="num"><span class="badge-soft badge-con-seg">{{ c.con_seg }}</span></td>
+              <td class="num"><span class="badge-soft badge-no-seg">{{ c.sin_seg }}</span></td>
+              <td class="num">{{ c.seg_total }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top deudores + Cobros por empresa 30d -->
+<div class="row g-3 mb-3">
+  <div class="col-md-7">
+    <div class="card-section">
+      <h5><i class="bi bi-trophy-fill"></i> Top 20 clientes deudores</h5>
+      <div class="table-wrap">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Cliente</th>
+              <th>Empresa</th>
+              <th class="text-end">Fact.</th>
+              <th class="text-end">Saldo</th>
+              <th class="text-end">Días máx.</th>
+              <th class="text-end">Recordatorios</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in data.top_deudores %}
+            <tr>
+              <td class="num">{{ loop.index }}</td>
+              <td class="col-name">{{ d.name }}</td>
+              <td><span class="badge-soft badge-light">{{ d.company }}</span></td>
+              <td class="num">{{ d.count }}</td>
+              <td class="num-money">${{ '{:,.0f}'.format(d.amount) }}</td>
+              <td class="num">
+                <span class="bucket-cell bucket-{% if d.max_days>120 %}120plus{% elif d.max_days>90 %}91-120{% elif d.max_days>60 %}61-90{% elif d.max_days>30 %}31-60{% else %}1-30{% endif %}">{{ d.max_days }}</span>
+              </td>
+              <td class="num">
+                {% if d.wa %}<span class="badge-soft badge-channel-wa" title="WhatsApp"><i class="bi bi-whatsapp"></i> {{ d.wa }}</span>{% endif %}
+                {% if d.email %}<span class="badge-soft badge-channel-em" title="Email"><i class="bi bi-envelope"></i> {{ d.email }}</span>{% endif %}
+                {% if not d.wa and not d.email %}<span class="badge-soft badge-no-seg">Sin contactar</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-5">
+    <div class="card-section">
+      <h5><i class="bi bi-cash-coin"></i> Cobros últimos 30 días por empresa</h5>
+      <canvas id="cobrosByCompanyChart" style="max-height:200px"></canvas>
+      <div class="table-wrap mt-3" style="max-height:none">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th class="text-end">Pagos</th>
+              <th class="text-end">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in data.cobros_por_empresa %}
+            <tr>
+              <td><strong>{{ c.name }}</strong></td>
+              <td class="num">{{ c.count }}</td>
+              <td class="num-money">${{ '{:,.0f}'.format(c.amount) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-center text-muted py-3">Sin pagos en período</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extrajs %}
+<script>
+const data = {{ data | tojson }};
+
+// === Aging chart ===
+new Chart(document.getElementById('agingChart'), {
+  type: 'doughnut',
+  data: {
+    labels: data.aging.map(a => a.bucket + ' días'),
+    datasets: [{
+      data: data.aging.map(a => a.amount),
+      backgroundColor: ['#fdd835','#ffb74d','#ff8a65','#e53935','#b71c1c'],
+      borderWidth: 2, borderColor: '#fff',
+    }],
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ctx.label + ': $' + ctx.parsed.toLocaleString() } },
+    },
+  },
+});
+
+// === By company chart ===
+new Chart(document.getElementById('byCompanyChart'), {
+  type: 'bar',
+  data: {
+    labels: data.by_company.map(c => c.name),
+    datasets: [{
+      label: 'Monto vencido',
+      data: data.by_company.map(c => c.amount),
+      backgroundColor: '#0d2840',
+      borderRadius: 4,
+    }],
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toLocaleString() } } },
+    scales: { y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } } },
+  },
+});
+
+// === Cobros 30d ===
+new Chart(document.getElementById('cobrosByCompanyChart'), {
+  type: 'bar',
+  data: {
+    labels: data.cobros_por_empresa.map(c => c.name),
+    datasets: [{
+      label: 'Cobrado',
+      data: data.cobros_por_empresa.map(c => c.amount),
+      backgroundColor: '#1f8a3e',
+      borderRadius: 4,
+    }],
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.x.toLocaleString() } } },
+    scales: { x: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } } },
+  },
+});
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Clientes{% endblock %}
+
+{% block content %}
+
+<div class="card-section">
+  <h5><i class="bi bi-people-fill"></i> Detalle de clientes con saldo vencido</h5>
+  <div class="d-flex gap-3 mb-3 align-items-center">
+    <input type="text" id="searchInput" class="form-control" placeholder="🔍 Buscar cliente..." style="max-width:320px">
+    <select id="filterCompany" class="form-select" style="max-width:200px">
+      <option value="">Todas las empresas</option>
+      {% for c in data.by_company %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+    </select>
+    <select id="filterSeg" class="form-select" style="max-width:200px">
+      <option value="">Todos</option>
+      <option value="con">Con seguimiento</option>
+      <option value="sin">Sin seguimiento</option>
+    </select>
+    <span class="badge-soft badge-light ms-auto" id="visibleCount"></span>
+  </div>
+
+  <div class="table-wrap" style="max-height:75vh">
+    <table class="table table-clean" id="clientsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th>Empresa</th>
+          <th class="text-end">Facturas</th>
+          <th class="text-end">Saldo total</th>
+          <th class="text-end">Días máx</th>
+          <th class="text-end">WhatsApp</th>
+          <th class="text-end">Email</th>
+          <th class="text-end">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in data.top_deudores %}
+        <tr data-name="{{ d.name|lower }}" data-company="{{ d.company }}" data-seg="{% if d.wa or d.email %}con{% else %}sin{% endif %}">
+          <td class="num">{{ loop.index }}</td>
+          <td class="col-name">{{ d.name }}</td>
+          <td><span class="badge-soft badge-light">{{ d.company }}</span></td>
+          <td class="num">{{ d.count }}</td>
+          <td class="num-money">${{ '{:,.0f}'.format(d.amount) }}</td>
+          <td class="num">
+            <span class="bucket-cell bucket-{% if d.max_days>120 %}120plus{% elif d.max_days>90 %}91-120{% elif d.max_days>60 %}61-90{% elif d.max_days>30 %}31-60{% else %}1-30{% endif %}">{{ d.max_days }}</span>
+          </td>
+          <td class="num">{% if d.wa %}<span class="badge-soft badge-channel-wa">{{ d.wa }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td class="num">{% if d.email %}<span class="badge-soft badge-channel-em">{{ d.email }}</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+          <td class="num">
+            {% if d.wa or d.email %}
+              <span class="badge-soft badge-con-seg"><i class="bi bi-check-circle-fill"></i> Contactado</span>
+            {% else %}
+              <span class="badge-soft badge-no-seg"><i class="bi bi-x-circle-fill"></i> Sin contactar</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extrajs %}
+<script>
+const tbody = document.querySelector('#clientsTable tbody');
+const rows = Array.from(tbody.rows);
+const search = document.getElementById('searchInput');
+const filterCompany = document.getElementById('filterCompany');
+const filterSeg = document.getElementById('filterSeg');
+const visibleCount = document.getElementById('visibleCount');
+
+function applyFilters() {
+  const q = search.value.toLowerCase().trim();
+  const cmp = filterCompany.value;
+  const seg = filterSeg.value;
+  let n = 0;
+  rows.forEach(r => {
+    const matchQ = !q || r.dataset.name.includes(q);
+    const matchC = !cmp || r.dataset.company === cmp;
+    const matchS = !seg || r.dataset.seg === seg;
+    const show = matchQ && matchC && matchS;
+    r.style.display = show ? '' : 'none';
+    if (show) n++;
+  });
+  visibleCount.textContent = `Mostrando ${n} clientes`;
+}
+search.addEventListener('input', applyFilters);
+filterCompany.addEventListener('change', applyFilters);
+filterSeg.addEventListener('change', applyFilters);
+applyFilters();
+</script>
+{% endblock %}

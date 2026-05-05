@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: cobros-indicador
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --threads 2 --timeout 90 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: ODOO_URL
+        value: https://pestbuster.odoo.com
+      - key: ODOO_DB
+        value: psdc-inc-pestbuster-prod-20747552
+      - key: ODOO_USER
+        sync: false
+      - key: ODOO_PASSWORD
+        sync: false
+      - key: PG_HOST
+        value: dpg-d7bcup1r0fns73b2hfj0-a.oregon-postgres.render.com
+      - key: PG_PORT
+        value: "5432"
+      - key: PG_DB
+        value: gruporapid
+      - key: PG_USER
+        value: gruporapid
+      - key: PG_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CACHE_TTL
+        value: "60"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+    healthCheckPath: /health

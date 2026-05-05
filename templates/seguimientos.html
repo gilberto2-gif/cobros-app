@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Seguimientos{% endblock %}
+
+{% block content %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-info">
+      <div class="label"><i class="bi bi-chat-square-text-fill"></i> Total mensajes (90d)</div>
+      <div class="value">{{ '{:,}'.format(data.kpis.n_seguimientos_total) }}</div>
+      <div class="meta">recordatorios enviados</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-ok">
+      <div class="label"><i class="bi bi-whatsapp"></i> WhatsApp</div>
+      {% set wa = data.por_canal | selectattr('channel','equalto','whatsapp') | list %}
+      <div class="value">{{ '{:,}'.format(wa[0].count if wa else 0) }}</div>
+      <div class="meta">{{ '{:.0f}'.format((wa[0].count if wa else 0) * 100 / (data.kpis.n_seguimientos_total or 1)) }}% del total</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-info">
+      <div class="label"><i class="bi bi-envelope-fill"></i> Email</div>
+      {% set em = data.por_canal | selectattr('channel','equalto','email') | list %}
+      <div class="value">{{ '{:,}'.format(em[0].count if em else 0) }}</div>
+      <div class="meta">{{ '{:.0f}'.format((em[0].count if em else 0) * 100 / (data.kpis.n_seguimientos_total or 1)) }}% del total</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="kpi-card kpi-warn">
+      <div class="label"><i class="bi bi-broadcast-pin"></i> Cobertura</div>
+      <div class="value">{{ data.kpis.pct_cobertura_seguimiento }}%</div>
+      <div class="meta">de {{ data.kpis.n_invoices }} facturas vencidas</div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline de actividad -->
+<div class="card-section">
+  <h5><i class="bi bi-graph-up"></i> Actividad de seguimiento (últimos 30 días)</h5>
+  <canvas id="timelineChart" style="max-height:240px"></canvas>
+</div>
+
+<!-- Clientes más contactados + sin seguimiento -->
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card-section">
+      <h5><i class="bi bi-megaphone-fill"></i> Top clientes más contactados</h5>
+      <div class="table-wrap">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Cliente</th>
+              <th class="text-end">WhatsApp</th>
+              <th class="text-end">Email</th>
+              <th class="text-end">Total</th>
+              <th>Último envío</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in data.mas_contactados %}
+            <tr>
+              <td class="num">{{ loop.index }}</td>
+              <td class="col-name">{{ c.name }}</td>
+              <td class="num"><span class="badge-soft badge-channel-wa">{{ c.wa }}</span></td>
+              <td class="num"><span class="badge-soft badge-channel-em">{{ c.email }}</span></td>
+              <td class="num"><strong>{{ c.total }}</strong></td>
+              <td><small class="text-muted">{{ c.ultimo[:10] if c.ultimo else '-' }}</small></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card-section">
+      <h5><i class="bi bi-exclamation-octagon-fill"></i> Clientes vencidos SIN ningún seguimiento</h5>
+      <div class="table-wrap">
+        <table class="table table-clean">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Empresa</th>
+              <th class="text-end">Fact.</th>
+              <th class="text-end">Saldo</th>
+              <th class="text-end">Días</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in data.sin_seguimiento[:30] %}
+            <tr>
+              <td class="col-name">{{ c.name }}</td>
+              <td><span class="badge-soft badge-light">{{ c.company }}</span></td>
+              <td class="num">{{ c.count }}</td>
+              <td class="num-money">${{ '{:,.0f}'.format(c.amount) }}</td>
+              <td class="num">
+                <span class="bucket-cell bucket-{% if c.max_days>120 %}120plus{% elif c.max_days>90 %}91-120{% elif c.max_days>60 %}61-90{% elif c.max_days>30 %}31-60{% else %}1-30{% endif %}">{{ c.max_days }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 text-end">
+        <small class="text-muted">{{ data.sin_seguimiento|length }} clientes sin seguimiento total</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extrajs %}
+<script>
+const data = {{ data | tojson }};
+
+new Chart(document.getElementById('timelineChart'), {
+  type: 'bar',
+  data: {
+    labels: data.timeline.map(t => t.date.slice(5)),
+    datasets: [
+      {
+        label: 'WhatsApp',
+        data: data.timeline.map(t => t.whatsapp),
+        backgroundColor: '#1f8a3e',
+        borderRadius: 3,
+      },
+      {
+        label: 'Email',
+        data: data.timeline.map(t => t.email),
+        backgroundColor: '#1565c0',
+        borderRadius: 3,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } },
+    },
+  },
+});
+</script>
+{% endblock %}
