@@ -15,17 +15,8 @@ class AgedReceivableCustomHandler(models.AbstractModel):
             "name": _("Enviar Estado de Cuenta"),
             "action": "caret_option_enviar_pdf_estado_cuenta",
         }
-        target_keys = ("account.aged.receivable", "account.report.partner", "partner.id")
-        added = False
-        for key in target_keys:
-            if key in caret_options:
-                caret_options[key].append(pdf_option)
-                caret_options[key].append(email_option)
-                added = True
-        if not added:
-            caret_options.setdefault("account.aged.receivable", []).extend(
-                [pdf_option, email_option]
-            )
+        caret_options.setdefault("res.partner", []).append(pdf_option)
+        caret_options["res.partner"].append(email_option)
         return caret_options
 
     def _extract_partner_from_params(self, params):
